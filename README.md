@@ -76,7 +76,9 @@ pip install -r requirements.txt
 
 # 5. Start the Server
 uvicorn main:app --reload
-2.frontend setup
+```bash
+
+### 2.frontend setup
 # 1. Navigate to frontend folder
 cd docassist_frontend
 
