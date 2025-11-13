@@ -56,7 +56,7 @@ It features a **"Just-in-Time" Database Architecture**: the system automatically
 * Serper.dev API Key (Free tier)
 
 ### 1. Backend Setup
-```bash
+
 # 1. Navigate to backend folder
 cd docassist_backend
 
@@ -76,7 +76,7 @@ pip install -r requirements.txt
 
 # 5. Start the Server
 uvicorn main:app --reload
-```bash
+
 
 ### 2.frontend setup
 # 1. Navigate to frontend folder
