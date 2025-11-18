@@ -56,6 +56,50 @@ def generate_credentials(name: str):
     username = f"dr_{clean_name}_{random.randint(100,999)}"
     return username, "123"
 
+
+
+# --- AUTHENTICATION (FIX FOR 404) ---
+
+@app.post("/api/auth/patient/register")
+def patient_register(data: PatientRegister, db: Session = Depends(get_session)):
+    # Check if already exists
+    existing = db.exec(select(Patient).where(Patient.email == data.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_patient = Patient(
+        name=data.name,
+        email=data.email,
+        password=data.password,      # (No hashing yet – simple version)
+        age=data.age,
+        city=data.city
+    )
+    db.add(new_patient)
+    db.commit()
+    db.refresh(new_patient)
+
+    return {"message": "Registered Successfully", "patient_id": new_patient.id}
+
+
+@app.post("/api/auth/patient/login")
+def patient_login(data: LoginRequest, db: Session = Depends(get_session)):
+    user = db.exec(
+        select(Patient).where(
+            (Patient.email == data.username_or_email) &
+            (Patient.password == data.password)
+        )
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+
+    return {
+        "message": "Login Successful",
+        "patient_id": user.id,
+        "name": user.name,
+        "city": user.city
+    }
+
 # --- AI ANALYZE ENDPOINT ---
 @app.post("/api/analyze")
 def analyze_symptoms(input: SymptomInput):

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # --- BACKEND SERVICE ---
+  backend:
+    # 👇 CHANGE 1: Point to the folder named "backend"
+    build: ./backend
+    container_name: docassist_api
+    ports:
+      - "8000:8000"
+    volumes:
+      # 👇 CHANGE 2: Fix volume mapping
+      - ./backend/docassist.db:/app/docassist.db
+      # 👇 CHANGE 3: Fix source mapping
+      - ./backend:/app
+    env_file:
+      # 👇 CHANGE 4: Fix .env path
+      - ./backend/.env
+    restart: always
+
+  # --- FRONTEND SERVICE ---
+  frontend:
+    # Keep this as docassist_frontend (based on your previous logs)
+    build: ./docassist_frontend
+    container_name: docassist_ui
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./docassist_frontend/src:/app/src
+    depends_on:
+      - backend
+    restart: always
