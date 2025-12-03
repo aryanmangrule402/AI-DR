@@ -1,3 +1,4 @@
+# models.py
 from datetime import datetime
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
@@ -8,7 +9,6 @@ class UrgencyLevel(str, Enum):
     MEDIUM = "Medium"
     LOW = "Low"
 
-# --- DOCTOR MODEL ---
 class Doctor(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -18,14 +18,12 @@ class Doctor(SQLModel, table=True):
     city: str
     rating: float = 0.0
     google_maps_link: str
-    
-    # Login Credentials (Auto-generated for AI doctors)
-    username: str = Field(unique=True)
-    password: str 
-    
+
+    username: str = Field(default="", unique=True)
+    password: str = Field(default="")
+
     appointments: List["Appointment"] = Relationship(back_populates="doctor")
 
-# --- PATIENT MODEL ---
 class Patient(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -35,31 +33,31 @@ class Patient(SQLModel, table=True):
     age: int
     appointments: List["Appointment"] = Relationship(back_populates="patient")
 
-# --- APPOINTMENT MODEL ---
 class Appointment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     symptom_description: str
     ai_summary: str
     urgency: UrgencyLevel
-    
-    # Always link to a Doctor ID now (since we auto-create them)
+
     doctor_id: int = Field(foreign_key="doctor.id")
     doctor: Optional[Doctor] = Relationship(back_populates="appointments")
-    
+
     patient_id: int = Field(foreign_key="patient.id")
     patient: Optional[Patient] = Relationship(back_populates="appointments")
-    
+
     appointment_time: datetime
     status: str = "Confirmed"
     created_at: datetime = Field(default_factory=datetime.now)
 
 # --- SCHEMAS ---
-class SymptomInput(SQLModel):
+from sqlmodel import SQLModel as SchemaBase
+from sqlmodel import Field as SchemaField
+
+class SymptomInput(SchemaBase):
     description: str
     city: str
 
 class BookingRequest(SQLModel):
-    # We accept full details so we can Auto-Register the doctor if needed
     doctor_name: str
     hospital_name: str
     specialty: str
@@ -71,23 +69,19 @@ class BookingRequest(SQLModel):
     symptom_description: str
     ai_summary: str
     urgency: UrgencyLevel
-# ... (Keep imports)
 
-class AIAnalysisResponse(SQLModel):
+class AIAnalysisResponse(SchemaBase):
     summary: str
     urgency: UrgencyLevel
     recommended_specialist: str
     reasoning: str
-    # NEW FIELD: Advice for the patient
-    care_advice: str 
+    care_advice: str
 
-# ... (Keep the rest of the file unchanged)
-
-class LoginRequest(SQLModel):
+class LoginRequest(SchemaBase):
     username_or_email: str
     password: str
 
-class DoctorRegister(SQLModel):
+class DoctorRegister(SchemaBase):
     name: str
     specialty: str
     hospital_name: str
@@ -97,7 +91,7 @@ class DoctorRegister(SQLModel):
     username: str
     password: str
 
-class PatientRegister(SQLModel):
+class PatientRegister(SchemaBase):
     name: str
     email: str
     password: str

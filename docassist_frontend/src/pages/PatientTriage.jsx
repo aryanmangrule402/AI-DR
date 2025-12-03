@@ -80,30 +80,40 @@ useEffect(() => {
     setLoading(false);
   };
 
-  const handleBook = async (doc) => {
+const handleBook = async (doc) => {
     if(!patientId) return alert("Please Login first");
+
+    // Construct the payload carefully to avoid missing fields
+    const payload = {
+        doctor_name: doc.name || "Unknown Doctor",
+        hospital_name: doc.hospital_name || "Unknown Clinic",
+        specialty: doc.specialty || aiResult?.recommended_specialist || "General",
+        address: doc.address || formData.city,
+        city: formData.city,
+        google_maps_link: doc.google_maps_link || "",
+        
+        patient_id: parseInt(patientId),
+        symptom_description: formData.description,
+        ai_summary: aiResult?.summary || "No summary",
+        urgency: aiResult?.urgency || "Low"
+    };
+
+    console.log("Booking Payload:", payload); // Debugging: Check console to see what is sent
+
     try {
-        const res = await axios.post('http://127.0.0.1:8000/api/book', {
-            doctor_name: doc.name,
-            hospital_name: doc.hospital_name,
-            specialty: doc.specialty || aiResult.recommended_specialist,
-            address: doc.address,
-            city: formData.city,
-            google_maps_link: doc.google_maps_link,
-            patient_id: parseInt(patientId),
-            symptom_description: formData.description,
-            ai_summary: aiResult.summary,
-            urgency: aiResult.urgency
-        });
+        const res = await axios.post('http://127.0.0.1:8000/api/book', payload);
+        
         setBooked(res.data);
         fetchHistory();
         setStep(3);
-        if(res.data.demo_credentials) alert(`[DEMO] New Doctor Created!\nUser: ${res.data.demo_credentials.username}\nPass: ${res.data.demo_credentials.password}`);
+        
+        if(res.data.demo_credentials) {
+            alert(`[DEMO] New Doctor Created!\nUser: ${res.data.demo_credentials.username}\nPass: ${res.data.demo_credentials.password}`);
+        }
     } catch (error) {
-  console.error(error);
-  alert("Server Error");
-}
-
+        console.error("Booking Error Details:", error.response?.data); // Check console for exact backend error message
+        alert("Booking Failed: " + (error.response?.data?.detail?.[0]?.msg || "Server Error"));
+    }
   };
 
   const handleLogout = () => { localStorage.clear(); navigate('/'); }
