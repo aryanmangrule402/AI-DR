@@ -7,7 +7,16 @@ import requests
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
+from models import Appointment, Doctor
+from database import get_session
+from sqlmodel import Session, select
+from fastapi import FastAPI, Depends
+from sqlmodel import select, Session
+from dotenv import load_dotenv
+load_dotenv()
 
+from models import Appointment, Doctor
+from database import get_session
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -224,23 +233,30 @@ def doctor_login(data: LoginRequest, db: Session = Depends(get_session)):
 
 @app.get("/api/patient/{patient_id}/appointments")
 def get_patient_appointments(patient_id: int, db: Session = Depends(get_session)):
-    # Simple select (no join required if we save names in appointment table)
-    res = db.exec(select(Appointment).where(Appointment.patient_id == patient_id).order_by(Appointment.appointment_time.desc())).all()
-    return res
+    # Join Appointment with Doctor
+    stmt = select(Appointment, Doctor).join(Doctor).where(Appointment.patient_id == patient_id)
+    results = db.exec(stmt).all()
 
+    history = []
+    for appointment, doctor in results:
+        history.append({
+            "id": appointment.id,
+            "doctor_name": doctor.name if doctor else "Unknown",
+            "hospital_name": doctor.hospital_name if doctor else "Unknown Hospital",
+            "appointment_time": appointment.appointment_time,
+            "status": appointment.status
+        })
+    
+    return history
+
+    
 @app.get("/api/doctor/{doctor_id}/appointments")
 def get_doctor_appointments(doctor_id: int, db: Session = Depends(get_session)):
     # Join needed to get patient name
     res = db.exec(select(Appointment, Patient).join(Patient).where(Appointment.doctor_id == doctor_id).order_by(Appointment.appointment_time)).all()
     return [{**a.model_dump(), "patient_name": p.name} for a, p in res]
 
-@app.put("/api/appointment/{apt_id}/approve")
-def approve_appointment(apt_id: int, db: Session = Depends(get_session)):
-    apt = db.get(Appointment, apt_id)
-    if not apt: raise HTTPException(404, "Not found")
-    apt.status = "Confirmed"
-    db.add(apt); db.commit()
-    return {"message": "Approved"}
+
 
 @app.delete("/api/appointment/{apt_id}")
 def delete_appointment(apt_id: int, db: Session = Depends(get_session)):
@@ -248,3 +264,37 @@ def delete_appointment(apt_id: int, db: Session = Depends(get_session)):
     if not apt: raise HTTPException(404, "Not found")
     db.delete(apt); db.commit()
     return {"message": "Deleted"}
+
+from notifications import send_email
+@app.put("/api/appointment/{apt_id}/approve")
+def approve_appointment(apt_id: int, db: Session = Depends(get_session)):
+    # Fetch appointment
+    apt = db.get(Appointment, apt_id)
+    if not apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    # Update status
+    apt.status = "Confirmed"
+    db.add(apt)
+    db.commit()
+    db.refresh(apt)
+
+    # Fetch doctor
+    doctor = db.get(Doctor, apt.doctor_id)
+
+    # Fetch patient
+    patient = db.get(Patient, apt.patient_id)
+    if patient and patient.email:
+        send_email(
+            to_email=patient.email,
+            subject="Appointment Confirmed",
+            body=(
+                f"Hello {patient.name},\n\n"
+                f"Your appointment with Dr. {doctor.name} has been confirmed.\n"
+                f"Time: {apt.appointment_time}\n"
+                f"Hospital: {doctor.hospital_name}\n\n"
+                "Thank you!"
+            )
+        )
+
+    return {"message": "Appointment approved and patient notified"}
