@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from enum import Enum
-
+from pydantic import BaseModel
+from datetime import datetime
 class UrgencyLevel(str, Enum):
     HIGH = "High"
     MEDIUM = "Medium"
@@ -24,6 +25,9 @@ class Doctor(SQLModel, table=True):
 
     appointments: List["Appointment"] = Relationship(back_populates="doctor")
 
+
+
+    
 class Patient(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

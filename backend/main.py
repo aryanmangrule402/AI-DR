@@ -145,27 +145,49 @@ def search_doctors(specialty: str, city: str, query: str = "", db: Session = Dep
 # --- BOOK APPOINTMENT ---
 @app.post("/api/book")
 def book(data: BookingRequest, db: Session = Depends(get_session)):
-    # Accept both patient_id and patientId from incoming JSON (Frontend sends patient_id)
-    patient_id = data.patient_id 
+    # Accept both patient_id and patientId from incoming JSON
+    patient_id = data.patient_id
     if patient_id is None:
         raise HTTPException(status_code=422, detail="patient_id is required")
 
-    statement = select(Doctor).where(Doctor.name == data.doctor_name).where(Doctor.hospital_name == data.hospital_name)
+    # ------------------------------------------
+    # 🔍 CHECK IF DOCTOR ALREADY EXISTS (CORRECT PLACE)
+    # ------------------------------------------
+    statement = select(Doctor).where(
+        Doctor.hospital_name == data.hospital_name
+    ).where(
+        Doctor.specialty == data.specialty
+    )
+
     doctor = db.exec(statement).first()
 
-    if not doctor:
-        uname, pwd = generate_credentials(data.doctor_name)
-        new_doctor = Doctor(
-            name=data.doctor_name, specialty=data.specialty, hospital_name=data.hospital_name,
-            address=data.address, city=data.city, rating=4.5, google_maps_link=data.google_maps_link,
-            username=uname, password=pwd
-        )
-        db.add(new_doctor)
-        db.commit()
-        db.refresh(new_doctor)
-        doctor = new_doctor
+    # If exists → do NOT create new doctor
+    if doctor:
+        print("✔ Existing doctor found. Using existing doctor record.")
+    else:
+        print("⚠ Doctor not found; creating new doctor entry.")
 
-    initial_status = "Confirmed" if data.urgency == UrgencyLevel.HIGH else "Pending"
+        uname, pwd = generate_credentials(data.doctor_name)
+
+        doctor = Doctor(
+            name=data.doctor_name,
+            specialty=data.specialty,
+            hospital_name=data.hospital_name,
+            address=data.address,
+            city=data.city,
+            rating=4.5,
+            google_maps_link=data.google_maps_link,
+            username=uname,
+            password=pwd
+        )
+
+        db.add(doctor)
+        db.commit()
+        db.refresh(doctor)
+
+    # ------------------------------------------
+    # CREATE APPOINTMENT
+    # ------------------------------------------
     slot = datetime.now() + timedelta(hours=2)
 
     new_apt = Appointment(
@@ -175,22 +197,27 @@ def book(data: BookingRequest, db: Session = Depends(get_session)):
         ai_summary=data.ai_summary,
         urgency=data.urgency,
         appointment_time=slot,
-        status=initial_status,
-        doctor_name=data.doctor_name, # Save text for easy history view
+        status="Confirmed" if data.urgency == UrgencyLevel.HIGH else "Pending",
+        doctor_name=doctor.name,
         clinic_address=data.address
     )
+
     db.add(new_apt)
     db.commit()
     db.refresh(new_apt)
 
     return {
         "message": "Success",
-        "status": initial_status,
-        "time": slot.isoformat(),
+        "status": new_apt.status,
+        "appointment_time": slot,
         "doctor_id": doctor.id,
-        "id": new_apt.id,
-        "demo_credentials": {"username": doctor.username, "password": doctor.password}
+        "appointment_id": new_apt.id,
+        "demo_credentials": {
+            "username": doctor.username,
+            "password": doctor.password
+        }
     }
+
 
 # ================= AUTH ENDPOINTS (CRITICAL) =================
 
@@ -290,7 +317,7 @@ def approve_appointment(apt_id: int, db: Session = Depends(get_session)):
             subject="Appointment Confirmed",
             body=(
                 f"Hello {patient.name},\n\n"
-                f"Your appointment with Dr. {doctor.name} has been confirmed.\n"
+                f"Your appointment with Dr. {doctor.name} has been confirmed.please come on respected time given below\n"
                 f"Time: {apt.appointment_time}\n"
                 f"Hospital: {doctor.hospital_name}\n\n"
                 "Thank you!"
